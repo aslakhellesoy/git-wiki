@@ -22,7 +22,9 @@ task :bootstrap do
   end
 end
 
-Cucumber::Rake::Task.new
+Cucumber::Rake::Task.new do |t|
+  t.rcov = true
+end
 
 __END__
 ## Welcome on git-wiki

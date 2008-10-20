@@ -10,10 +10,18 @@ When /^I save the page$/ do
   clicks_button "Save as the newest version"
 end
 
+When /^I go to the list page$/ do
+  visits "/_list"
+end
+
 Then /^I should see "(.*)"$/ do |text|
   response_body.should =~ %r{#{text}}
 end
 
 Then /^I should not see "(.*)"$/ do |text|
   response_body.should_not =~ %r{#{text}}
+end
+
+Then /^I should see within "(.*)":$/ do |selector, html|
+  # TODO: Make this work with Hpricot
 end
