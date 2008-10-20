@@ -1,4 +1,6 @@
 require 'rubygems'
+require 'rubygems'
+require 'cucumber/rake/task'
 require 'git'
 
 task :default => :bootstrap
@@ -19,6 +21,8 @@ task :bootstrap do
     exec "ruby git-wiki.rb"
   end
 end
+
+Cucumber::Rake::Task.new
 
 __END__
 ## Welcome on git-wiki
