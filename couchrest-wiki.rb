@@ -48,6 +48,20 @@ end
 class Page < CouchRest::Model
   view_by :name
 
+  view_by :tags,
+    :map =>
+      "function(doc) {
+        if (doc['couchrest-type'] == 'Page' && doc.tags) {
+          doc.tags.forEach(function(tag){
+            emit(tag, doc);
+          });
+        }
+      }",
+    :reduce =>
+      "function(keys, values, rereduce) {
+        return values.length;
+      }"
+
   class << self
     def find(name)
       page_blob = by_name(:key => name)[0]
@@ -83,6 +97,10 @@ class Page < CouchRest::Model
 
   def body
     self['body']
+  end
+
+  def tags
+    self['tags'] || []
   end
 
   def content
@@ -123,10 +141,16 @@ helpers do
   def list_item(page)
     '<a class="page_name" href="/%s">%s</a>' % [page, page.name.titleize]
   end
+
+  def partial(name, options={})
+    haml name, options.merge(:layout => false)
+  end
 end
 
 before do
   content_type 'text/html', :charset => 'utf-8'
+
+  @tags = Page.by_tags(:reduce => true, :group => true)['rows']
 end
 
 get '/' do
@@ -139,7 +163,7 @@ get '/_stylesheet.css' do
 end
 
 get '/_list' do
-  @pages = Page.all
+  @pages = params[:tag] ? Page.by_tags(:key => params[:tag]) : Page.all
   haml :list
 end
 
@@ -155,6 +179,7 @@ end
 
 post '/e/:page' do
   @page = Page.find_or_create(params[:page])
+  params['tags'] = params['tags'].split(' ').map{|tag| tag.strip}
   @page.merge!(params)
   @page.save
   redirect "/#{@page}"
@@ -185,6 +210,12 @@ __END__
       })
   %body
     #content= yield
+    #tag_cloud= partial(:tag_cloud)
+
+@@ tag_cloud
+Tags:
+- @tags.each do |tag|
+  %a{:href => "/_list?tag=#{tag['key']}", :style => "font-size: #{tag['value']}em;"}= tag['key']
 
 @@ show
 - title @page.name.titleize
@@ -202,6 +233,8 @@ __END__
 %form{:method => 'POST', :action => "/e/#{@page}"}
   %p
     %textarea{:name => 'body'}= @page.content
+  %p
+    %input{:name => 'tags', :value => @page.tags.join(' ')}
   %p
     %input.submit{:type => :submit, :value => 'Save as the newest version'}
     or
