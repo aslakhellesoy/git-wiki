@@ -1,9 +1,8 @@
 #!/usr/bin/env ruby
 require 'rubygems'
-gem 'mojombo-grit'
 
 %w(sinatra
-grit
+couchrest
 haml
 sass
 redcloth).each { |dependency| require dependency }
@@ -46,17 +45,12 @@ class PageNotFound < Sinatra::NotFound
   end
 end
 
-class Page
+class Page < CouchRest::Model
+  view_by :name
+
   class << self
-    attr_accessor :repo
-
-    def find_all
-      return [] if repo.tree.contents.empty?
-      repo.tree.contents.collect { |blob| new(blob) }
-    end
-
     def find(name)
-      page_blob = find_blob(name)
+      page_blob = by_name(:key => name)[0]
       raise PageNotFound.new(name) unless page_blob
       new(page_blob)
     end
@@ -64,7 +58,7 @@ class Page
     def find_or_create(name)
       find(name)
     rescue PageNotFound
-      new(create_blob_for(name))
+      new(:name => name)
     end
 
     def css_class_for(name)
@@ -73,19 +67,6 @@ class Page
     rescue PageNotFound
       'unknown'
     end
-
-    private
-      def find_blob(page_name)
-        repo.tree/(page_name + PageExtension)
-      end
-
-      def create_blob_for(page_name)
-        Grit::Blob.create(repo, :name => page_name + PageExtension, :data => '')
-      end
-  end
-
-  def initialize(blob)
-    @blob = blob
   end
 
   def to_html
@@ -96,43 +77,24 @@ class Page
     name
   end
 
-  def new?
-    @blob.id.nil?
+  def name
+    self['name']
   end
 
-  def name
-    @blob.name.without_ext
+  def body
+    self['body']
   end
 
   def content
-    @blob.data
+    body
   end
 
-  def update_content(new_content)
-    return if new_content == content
-    File.open(file_name, 'w') { |f| f << new_content }
-    add_to_index_and_commit!
-  end
-
-  private
-    def add_to_index_and_commit!
-      Dir.chdir(GitRepository) { Page.repo.add(@blob.name) }
-      Page.repo.commit_index(commit_message)
-    end
-
-    def file_name
-      File.join(GitRepository, name + PageExtension)
-    end
-
-    def commit_message
-      new? ? "Created #{name}" : "Updated #{name}"
-    end
 end
 
 use_in_file_templates!
 
 configure do
-  GitRepository = ENV['GIT_WIKI_REPO'] || File.join(ENV['HOME'], 'wiki')
+  CouchUrl = "http://localhost:5984/couchrest-wiki"
   PageExtension = '.textile'
   Homepage = 'Home'
   set_option :haml,  :format        => :html4,
@@ -144,11 +106,7 @@ configure do
     end
   end
 
-  begin
-    Page.repo = Grit::Repo.new(GitRepository)
-  rescue Grit::InvalidGitRepositoryError, Grit::NoSuchPathError
-    abort "#{GitRepository}: Not a git repository. Install your wiki with `rake bootstrap`"
-  end
+  Page.use_database(CouchRest.database!(CouchUrl))
 end
 
 error PageNotFound do
@@ -181,7 +139,7 @@ get '/_stylesheet.css' do
 end
 
 get '/_list' do
-  @pages = Page.find_all
+  @pages = Page.all
   haml :list
 end
 
@@ -197,7 +155,8 @@ end
 
 post '/e/:page' do
   @page = Page.find_or_create(params[:page])
-  @page.update_content(params[:body])
+  @page.merge!(params)
+  @page.save
   redirect "/#{@page}"
 end
 
