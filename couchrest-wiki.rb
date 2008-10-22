@@ -64,9 +64,9 @@ class Page < CouchRest::Model
 
   class << self
     def find(name)
-      page_blob = by_name(:key => name)[0]
-      raise PageNotFound.new(name) unless page_blob
-      new(page_blob)
+      doc = by_name(:key => name)[0]
+      raise PageNotFound.new(name) unless doc
+      new(doc)
     end
 
     def find_or_create(name)
@@ -105,6 +105,11 @@ class Page < CouchRest::Model
 
   def content
     body
+  end
+  
+  def content_type
+    ext = File.extname(name)[1..-1]
+    Rack::File::MIME_TYPES[ext]
   end
 
 end
@@ -167,18 +172,25 @@ get '/_list' do
   haml :list
 end
 
-get '/:page' do
-  @page = Page.find(params[:page])
-  haml :show
-end
-
-get '/e/:page' do
-  @page = Page.find_or_create(params[:page])
+get '/e/*' do
+  name = params[:splat][0]
+  @page = Page.find_or_create(name)
   haml :edit
 end
 
-post '/e/:page' do
-  @page = Page.find_or_create(params[:page])
+get '/*' do
+  name = params[:splat][0]
+  @page = Page.find(name)
+  if @page.content_type
+    send_data @page.body, :type => @page.content_type, :disposition => 'inline'
+  else
+    haml :show
+  end
+end
+
+post '/e/*' do
+  name = params[:splat][0]
+  @page = Page.find_or_create(name)
   params['tags'] = params['tags'].split(' ').map{|tag| tag.strip}
   @page.merge!(params)
   @page.save

@@ -29,3 +29,11 @@ Feature: Maintain pages
     When I follow "one"
     Then I should see "FirstPost"
     And I should not see "SecondPost"
+    
+  Scenario: Upload js
+    Given I am editing "files/hello.js"
+    And I add the following body:
+      "alert('hello')"
+    When I save the page
+    And I go to "/files/hello.js"
+    Then I should see "alert('hello')"
