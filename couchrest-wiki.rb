@@ -118,7 +118,6 @@ use_in_file_templates!
 
 configure do
   CouchUrl = "http://localhost:5984/couchrest-wiki"
-  PageExtension = '.textile'
   Homepage = 'Home'
   set_option :haml,  :format        => :html4,
                      :attr_wrapper  => '"'

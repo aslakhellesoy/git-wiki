@@ -1,34 +1,22 @@
 require 'rubygems'
-require 'rubygems'
 require 'cucumber/rake/task'
-require 'git'
 
-task :default => :bootstrap
+task :default => :setup
 
-desc 'Bootstrap your wiki.'
-task :bootstrap do
-  path = ENV['GIT_WIKI_REPO'] || File.join(ENV['HOME'], 'wiki')
-  unless (Git.open(path) rescue false)
-    repository = Git.init(path)
-    File.open(File.join(path, 'Home'), 'w') { |f|
-      f << File.read(__FILE__).gsub(/.*__END__/m, '')
-    }
-    repository.add('Home')
-    repository.commit('Initial commit')
-    puts "* Initialized the repository in #{path}"
-    puts '* If everything worked as expected, git-wiki will be avalaible at http://0.0.0.0:4567/ in a second'
-    puts
-    exec "ruby git-wiki.rb"
+desc 'Add default content.'
+task :setup do
+  require 'sinatra'
+  require 'sinatra/test/common' # Prevent app from running
+  require File.dirname(__FILE__) + '/couchrest-wiki'
+  prefix = File.dirname(__FILE__) + '/default/'
+  Dir[prefix + '**/*'].each do |path|
+    name = path[prefix.length..-1]
+    p = Page.find_or_create(name)
+    p['body'] = IO.read(path)
+    p.save
   end
 end
 
 Cucumber::Rake::Task.new do |t|
   t.rcov = true
 end
-
-__END__
-## Welcome on git-wiki
-
-Congratulation, you managed to successfuly run git-wiki!
-Feel free to edit this page (double-clik it) and start to use your wiki.
-To access the page listing, hit <kbd>CTRL+L</kbd> and <kbd>CTRL+H</kbd> to go to the homepage.
